@@ -32,15 +32,8 @@ func main() {
 	go iterate(targetPath)
 
 	// Report results
-	maxTopOfPath := 0
 	for file := range fileChan {
-		if file.Path == "." {
-			continue
-		}
-		topOfPath := topOfPath(file.Path)
-		if len(topOfPath) > maxTopOfPath {
-			maxTopOfPath = len(topOfPath)
-		}
+		topOfPath := topOfPath(targetPath, file.Path)
 		tl := fileMap[topOfPath]
 		if tl == nil {
 			tl = &TopLevel{
@@ -54,18 +47,40 @@ func main() {
 		}
 		fileMap[topOfPath] = tl
 	}
-	// sort by bytes
+	// sort by total number of bytes in top level directory:
 	var topLevels []*TopLevel
 	for _, tl := range fileMap {
 		topLevels = append(topLevels, tl)
 	}
 	sortByBytes(topLevels)
 
-	// print results
-	for _, tl := range topLevels {
-		fmtString := fmt.Sprintf("%%14d B %%%ds: %%6d files\n", maxTopOfPath)
-		fmt.Printf(fmtString, tl.Bytes, tl.Name, tl.NumFiles)
+	table, widths := makeTable(topLevels)
+
+	for _, row := range table {
+		for i, cell := range row {
+			fmt.Printf("%*s", widths[i], cell)
+		}
+		fmt.Println()
 	}
+}
+
+func makeTable(topLevels []*TopLevel) ([][]string, []int) {
+	table := make([][]string, len(topLevels))
+	for i, tl := range topLevels {
+		table[i] = make([]string, 3)
+		table[i][0] = fmt.Sprintf("%s B ", commafiedInt(int(tl.Bytes)))
+		table[i][1] = fmt.Sprintf("%s:", tl.Name)
+		table[i][2] = fmt.Sprintf("%d files", tl.NumFiles)
+	}
+	widths := []int{0, 0, 0}
+	for _, row := range table {
+		for i, cell := range row {
+			if len(cell) > widths[i] {
+				widths[i] = len(cell)
+			}
+		}
+	}
+	return table, widths
 }
 
 func sortByBytes(topLevels []*TopLevel) {
@@ -78,10 +93,11 @@ func sortByBytes(topLevels []*TopLevel) {
 	}
 }
 
-func topOfPath(path string) string {
-	terms := strings.Split(path, "/")
+func topOfPath(targetPath, path string) string {
+	newPath := strings.Replace(path, targetPath, "", 1)
+	terms := strings.Split(newPath, "/")
 	for _, term := range terms {
-		if term == "." || term == ".." {
+		if term == "." || term == ".." || term == "" {
 			continue
 		}
 		return term
@@ -102,4 +118,12 @@ func iterate(path string) {
 		return nil
 	})
 	close(fileChan)
+}
+
+func commafiedInt(i int) string {
+	s := fmt.Sprintf("%d", i)
+	for i := len(s) - 3; i > 0; i -= 3 {
+		s = s[:i] + "," + s[i:]
+	}
+	return s
 }
