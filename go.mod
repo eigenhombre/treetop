@@ -1,4 +1,4 @@
-module github.com/eigenhombre/scandir
+module github.com/eigenhombre/treetop
 
 go 1.17
 
