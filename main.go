@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"io/fs"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -24,6 +26,20 @@ type TopLevel struct {
 
 var fileChan = make(chan FileInfo, 10000)
 
+func dirsInDir(dir string) ([]fs.FileInfo, error) {
+	files, err := ioutil.ReadDir(dir)
+	if err != nil {
+		return nil, fmt.Errorf("can't read dir: " + dir)
+	}
+	ret := []fs.FileInfo{}
+	for _, file := range files {
+		if file.IsDir() {
+			ret = append(ret, file)
+		}
+	}
+	return ret, nil
+}
+
 func main() {
 	fmt.Println()
 	targetPath := "."
@@ -31,8 +47,31 @@ func main() {
 		targetPath = os.Args[1]
 	}
 	fileMap := make(map[string]*TopLevel)
-	// Start iterating over files...:
-	go iterate(targetPath)
+
+	// Files in top level of directory:
+	files, err := dirsInDir(targetPath)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
+	type done struct{}
+	dirsOpenChan := make(chan done, len(files))
+
+	for _, file := range files {
+		go func(file string) {
+			collectDirStats(targetPath + "/" + file)
+			dirsOpenChan <- done{}
+		}(file.Name())
+	}
+
+	// goroutine that waits for all dir listings to be finished:
+	go func() {
+		for range files {
+			<-dirsOpenChan
+		}
+		close(fileChan)
+	}()
 
 	// ... consume and report results:
 	prevHeight := 0
@@ -55,7 +94,7 @@ func main() {
 			fileMap[topOfPath] = tl
 		}
 		t1 := time.Now()
-		if !ok || t1.Sub(t0) > 30*time.Millisecond {
+		if !ok || t1.Sub(t0) > 100*time.Millisecond {
 			cursor.Up(prevHeight)
 			prevHeight = showTable(fileMap)
 			t0 = t1
@@ -109,7 +148,7 @@ func makeTable(topLevels []*TopLevel) [][]string {
 		table[i] = make([]string, 3)
 		table[i][0] = fmt.Sprintf("%s B ", commafiedInt(int(tl.Bytes)))
 		table[i][1] = fmt.Sprintf("%s: ", tl.Name)
-		table[i][2] = fmt.Sprintf("%d files     ", tl.NumFiles)
+		table[i][2] = fmt.Sprintf("%d files%30s", tl.NumFiles, "")
 	}
 	return table
 }
@@ -137,10 +176,10 @@ func topOfPath(targetPath, path string) string {
 	return ""
 }
 
-func iterate(path string) {
+func collectDirStats(path string) {
 	filepath.Walk(path, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
-			// Skip read errors for now; typically, these are permissions issues;
+			// Skip read errors (generally, permissions) for now; typically, these are permissions issues;
 			// handle them later?  Present statistics?
 			// log.Fatalf(err.Error())
 			return nil
@@ -152,7 +191,7 @@ func iterate(path string) {
 		}
 		return nil
 	})
-	close(fileChan)
+	// close(fileChan)
 }
 
 func commafiedInt(i int) string {
