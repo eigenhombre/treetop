@@ -96,7 +96,7 @@ func main() {
 		t1 := time.Now()
 		if !ok || t1.Sub(t0) > 100*time.Millisecond {
 			cursor.Up(prevHeight)
-			prevHeight = showTable(fileMap)
+			prevHeight = showTable(makeTable(sortedTopLevels(fileMap), 20))
 			t0 = t1
 		}
 		if !ok {
@@ -106,26 +106,24 @@ func main() {
 	fmt.Println()
 }
 
-func showTable(fileMap map[string]*TopLevel) int {
+// sortedTopLevels returns a slice of topLevels sorted by name.
+func sortedTopLevels(fileMap map[string]*TopLevel) []*TopLevel {
 	// sort by total number of bytes in top level directory:
 	var topLevels []*TopLevel
 	for _, tl := range fileMap {
 		topLevels = append(topLevels, tl)
 	}
 	sortByBytes(topLevels)
+	return topLevels
+}
 
-	table := makeTable(topLevels)
-
-	max := 20
+func showTable(table [][]string) int {
 	widths := []int{0, 0, 0}
-	for i, row := range table {
+	for _, row := range table {
 		for i, cell := range row {
 			if len(cell) > widths[i] {
 				widths[i] = len(cell)
 			}
-		}
-		if i == max {
-			break
 		}
 	}
 	ret := 0
@@ -135,21 +133,31 @@ func showTable(fileMap map[string]*TopLevel) int {
 		}
 		fmt.Println()
 		ret++
-		if ret > max {
-			break
-		}
 	}
 	return ret
 }
 
-func makeTable(topLevels []*TopLevel) [][]string {
-	table := make([][]string, len(topLevels))
-	for i, tl := range topLevels {
-		table[i] = make([]string, 3)
-		table[i][0] = fmt.Sprintf("%s B ", commafiedInt(int(tl.Bytes)))
-		table[i][1] = fmt.Sprintf("%s: ", tl.Name)
-		table[i][2] = fmt.Sprintf("%d files%30s", tl.NumFiles, "")
+func makeTable(topLevels []*TopLevel, maxTopLevels int) [][]string {
+	table := [][]string{}
+	i, bytes, files := 0, 0, 0
+	for _, tl := range topLevels {
+		if i < maxTopLevels {
+			table = append(table, []string{
+				fmt.Sprintf("%s B ", commafiedInt(int(tl.Bytes))),
+				fmt.Sprintf("%s: ", tl.Name),
+				fmt.Sprintf("%d files%30s", tl.NumFiles, ""),
+			})
+		}
+		i++
+		bytes += int(tl.Bytes)
+		files += int(tl.NumFiles)
 	}
+	table = append(table, []string{"", "", ""})
+	table = append(table, []string{
+		fmt.Sprintf("%s B ", commafiedInt(bytes)),
+		"TOTAL  ",
+		fmt.Sprintf("%s files%30s", commafiedInt(files), ""),
+	})
 	return table
 }
 
