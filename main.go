@@ -6,7 +6,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"strings"
+	"sort"
 	"time"
 
 	"github.com/atomicgo/cursor"
@@ -24,21 +24,7 @@ type TopLevel struct {
 	Bytes    int64
 }
 
-var fileChan = make(chan FileInfo, 10000)
-
-func dirsInDir(dir string) ([]fs.FileInfo, error) {
-	files, err := ioutil.ReadDir(dir)
-	if err != nil {
-		return nil, fmt.Errorf("can't read dir: " + dir)
-	}
-	ret := []fs.FileInfo{}
-	for _, file := range files {
-		if file.IsDir() {
-			ret = append(ret, file)
-		}
-	}
-	return ret, nil
-}
+var fileChan = make(chan FileInfo, 1000)
 
 func main() {
 	fmt.Println()
@@ -106,6 +92,20 @@ func main() {
 	fmt.Println()
 }
 
+func dirsInDir(dir string) ([]fs.FileInfo, error) {
+	files, err := ioutil.ReadDir(dir)
+	if err != nil {
+		return nil, fmt.Errorf("can't read dir: " + dir)
+	}
+	ret := []fs.FileInfo{}
+	for _, file := range files {
+		if file.IsDir() {
+			ret = append(ret, file)
+		}
+	}
+	return ret, nil
+}
+
 // sortedTopLevels returns a slice of topLevels sorted by name.
 func sortedTopLevels(fileMap map[string]*TopLevel) []*TopLevel {
 	// sort by total number of bytes in top level directory:
@@ -113,31 +113,15 @@ func sortedTopLevels(fileMap map[string]*TopLevel) []*TopLevel {
 	for _, tl := range fileMap {
 		topLevels = append(topLevels, tl)
 	}
-	sortByBytes(topLevels)
+	sort.Slice(topLevels, func(i, j int) bool {
+		return topLevels[i].Bytes > topLevels[j].Bytes ||
+			topLevels[i].Bytes == topLevels[j].Bytes && topLevels[i].Name < topLevels[j].Name
+	})
 	return topLevels
 }
 
-func showTable(table [][]string) int {
-	widths := []int{0, 0, 0}
-	for _, row := range table {
-		for i, cell := range row {
-			if len(cell) > widths[i] {
-				widths[i] = len(cell)
-			}
-		}
-	}
-	ret := 0
-	for _, row := range table {
-		for i, cell := range row {
-			fmt.Printf("%*s", widths[i], cell)
-		}
-		fmt.Println()
-		ret++
-	}
-	return ret
-}
-
 func makeTable(topLevels []*TopLevel, maxTopLevels int) [][]string {
+	// Fixme: Generalize, and move into `table.go`?
 	table := [][]string{}
 	i, bytes, files := 0, 0, 0
 	for _, tl := range topLevels {
@@ -161,35 +145,12 @@ func makeTable(topLevels []*TopLevel, maxTopLevels int) [][]string {
 	return table
 }
 
-func sortByBytes(topLevels []*TopLevel) {
-	for i := 0; i < len(topLevels); i++ {
-		for j := i + 1; j < len(topLevels); j++ {
-			if topLevels[i].Bytes < topLevels[j].Bytes ||
-				topLevels[i].Bytes == topLevels[j].Bytes && topLevels[i].Name > topLevels[j].Name {
-				topLevels[i], topLevels[j] = topLevels[j], topLevels[i]
-			}
-		}
-	}
-}
-
-func topOfPath(targetPath, path string) string {
-	newPath := strings.Replace(path, targetPath, "", 1)
-	terms := strings.Split(newPath, "/")
-	for _, term := range terms {
-		if term == "." || term == ".." || term == "" {
-			continue
-		}
-		return term
-	}
-	return ""
-}
-
 func collectDirStats(path string) {
 	filepath.Walk(path, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
-			// Skip read errors (generally, permissions) for now; typically, these are permissions issues;
-			// handle them later?  Present statistics?
-			// log.Fatalf(err.Error())
+			// Skip read errors (generally, permissions) for now; typically,
+			// these are permissions issues; handle them later?
+			// Present statistics?
 			return nil
 		}
 		fileChan <- FileInfo{
@@ -199,13 +160,4 @@ func collectDirStats(path string) {
 		}
 		return nil
 	})
-	// close(fileChan)
-}
-
-func commafiedInt(i int) string {
-	s := fmt.Sprintf("%d", i)
-	for i := len(s) - 3; i > 0; i -= 3 {
-		s = s[:i] + "," + s[i:]
-	}
-	return s
 }
