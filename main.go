@@ -12,19 +12,19 @@ import (
 	"github.com/atomicgo/cursor"
 )
 
-type FileInfo struct {
+type fileInfo struct {
 	Name string
 	Size int64
 	Path string
 }
 
-type TopLevel struct {
+type topLevel struct {
 	Name     string
 	NumFiles int64
 	Bytes    int64
 }
 
-var fileChan = make(chan FileInfo, 1000)
+var fileChan = make(chan fileInfo, 1000)
 
 func main() {
 	fmt.Println()
@@ -32,7 +32,7 @@ func main() {
 	if len(os.Args) > 1 {
 		targetPath = os.Args[1]
 	}
-	fileMap := make(map[string]*TopLevel)
+	fileMap := make(map[string]*topLevel)
 
 	// Files in top level of directory:
 	files, err := dirsInDir(targetPath)
@@ -68,7 +68,7 @@ func main() {
 			topOfPath := topOfPath(targetPath, file.Path)
 			tl := fileMap[topOfPath]
 			if tl == nil {
-				tl = &TopLevel{
+				tl = &topLevel{
 					Name:     topOfPath,
 					Bytes:    file.Size,
 					NumFiles: 1,
@@ -107,9 +107,9 @@ func dirsInDir(dir string) ([]fs.FileInfo, error) {
 }
 
 // sortedTopLevels returns a slice of topLevels sorted by name.
-func sortedTopLevels(fileMap map[string]*TopLevel) []*TopLevel {
+func sortedTopLevels(fileMap map[string]*topLevel) []*topLevel {
 	// sort by total number of bytes in top level directory:
-	var topLevels []*TopLevel
+	var topLevels []*topLevel
 	for _, tl := range fileMap {
 		topLevels = append(topLevels, tl)
 	}
@@ -120,7 +120,7 @@ func sortedTopLevels(fileMap map[string]*TopLevel) []*TopLevel {
 	return topLevels
 }
 
-func makeTable(topLevels []*TopLevel, maxTopLevels int) [][]string {
+func makeTable(topLevels []*topLevel, maxTopLevels int) [][]string {
 	// Fixme: Generalize, and move into `table.go`?
 	table := [][]string{}
 	i, bytes, files := 0, 0, 0
@@ -153,7 +153,7 @@ func collectDirStats(path string) {
 			// Present statistics?
 			return nil
 		}
-		fileChan <- FileInfo{
+		fileChan <- fileInfo{
 			Name: info.Name(),
 			Size: info.Size(),
 			Path: path,

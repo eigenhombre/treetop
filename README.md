@@ -2,6 +2,8 @@
 
 <img src="treetop.png" width="400">
 
+![build](https://github.com/eigenhombre/treetop/actions/workflows/build.yml/badge.svg)
+
 Treetop is a fast, animated "disk summarizer."
 
 Essentially, a replacement for
