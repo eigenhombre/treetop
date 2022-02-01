@@ -12,6 +12,10 @@ func TestTopOfPath(t *testing.T) {
 		{".", "a/b", "a"},
 		{".", "a/b/c", "a"},
 		{"a", "a/b/c", "b"},
+		{".", "./a.b.c", "a.b.c"},
+		{".", "a.b.c", "a.b.c"},
+		{"~/foo", "~/foo/bar", "bar"},
+		{"/foo/bar/baz", "/foo/bar/baz/qux", "qux"},
 	}
 	for _, test := range tests {
 		got := topOfPath(test.targetPath, test.path)

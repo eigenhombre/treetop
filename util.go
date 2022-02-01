@@ -14,7 +14,12 @@ func commafiedInt(i int) string {
 }
 
 func topOfPath(targetPath, path string) string {
-	newPath := strings.Replace(path, targetPath, "", 1)
+	var newPath string
+	if strings.HasPrefix(path, targetPath) {
+		newPath = path[len(targetPath):]
+	} else {
+		newPath = path
+	}
 	terms := strings.Split(newPath, "/")
 	for _, term := range terms {
 		if term == "." || term == ".." || term == "" {
